@@ -2,18 +2,21 @@
 <html>
 <head>
     <title>Economic Evaluation of Investment Alternatives</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { font-size: 24px; }
+        h1 { font-size: 24px; display: flex; align-items: center; }
+        h1 img { height: 60px; margin-right: 20px; }
         table { border-collapse: collapse; width: 100%; margin-top: 20px; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
         th { background-color: #f2f2f2; }
         .highlight { font-weight: bold; background-color: #dff0d8; }
         .error { color: red; margin-top: 20px; }
+        canvas { margin-top: 30px; }
     </style>
 </head>
 <body>
-    <h1>Economic Evaluation of Investment Alternatives</h1>
+    <h1><img src="https://www.iea-isgan.org/wp-content/uploads/2020/04/isgan-logo.png" alt="ISGAN Logo"> Economic Evaluation of Investment Alternatives</h1>
 
     <form action="/calculate" method="post" enctype="multipart/form-data">
         <label for="file">Upload Excel file (.xls or .xlsx):</label>
@@ -53,6 +56,54 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <h2>Comparative Charts</h2>
+    <canvas id="npvChart" width="400" height="200"></canvas>
+    <canvas id="irrChart" width="400" height="200"></canvas>
+    <canvas id="cbrChart" width="400" height="200"></canvas>
+
+    <script>
+        const names = {{ names | tojson }};
+        const npvs = {{ npvs | tojson }};
+        const irrs = {{ irrs | tojson }};
+        const cbrs = {{ cbrs | tojson }};
+
+        new Chart(document.getElementById('npvChart'), {
+            type: 'bar',
+            data: {
+                labels: names,
+                datasets: [{
+                    label: 'NPV',
+                    data: npvs,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('irrChart'), {
+            type: 'bar',
+            data: {
+                labels: names,
+                datasets: [{
+                    label: 'IRR',
+                    data: irrs,
+                    backgroundColor: 'rgba(255, 159, 64, 0.6)'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('cbrChart'), {
+            type: 'bar',
+            data: {
+                labels: names,
+                datasets: [{
+                    label: 'CB Ratio',
+                    data: cbrs,
+                    backgroundColor: 'rgba(153, 102, 255, 0.6)'
+                }]
+            }
+        });
+    </script>
     {% endif %}
 </body>
 </html>
