@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, UploadFile, File
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 import pandas as pd
 import numpy as np
@@ -9,7 +8,6 @@ import io
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
@@ -53,4 +51,36 @@ async def calculate_cba(request: Request, file: UploadFile = File(...)):
         except Exception as e:
             results.append({"Name": row.get("Name", "Unknown"), "Error": str(e)})
 
-    return templates.TemplateResponse("index.html", {"request": request, "results": results})
+    max_npv = max([r["NPV"] for r in results if "NPV" in r and isinstance(r["NPV"], (int, float))], default=None)
+
+    return templates.TemplateResponse("index.html", {"request": request, "results": results, "max_npv": max_npv})
+
+@app.post("/download", response_class=StreamingResponse)
+async def download_excel(file: UploadFile = File(...)):
+    contents = await file.read()
+    df = pd.read_excel(io.BytesIO(contents))
+    output = []
+    for _, row in df.iterrows():
+        try:
+            capex = float(row['CAPEX'])
+            opex = float(row['OPEX'])
+            benefit = float(row['Benefits'])
+            years = int(row['Years'])
+            discount_rate = float(row['DiscountRate'])
+            cash_flows = [-capex] + [benefit - opex] * years
+            npv = npf.npv(discount_rate, cash_flows)
+            irr = npf.irr(cash_flows)
+            cb_ratio = sum([(benefit - opex) / ((1 + discount_rate) ** (i + 1)) for i in range(years)]) / capex
+            row['NPV'] = round(npv, 2)
+            row['IRR'] = round(irr, 4) if irr is not None else "N/A"
+            row['CB Ratio'] = round(cb_ratio, 2)
+        except:
+            row['NPV'] = "Error"
+            row['IRR'] = "Error"
+            row['CB Ratio'] = "Error"
+        output.append(row)
+    result_df = pd.DataFrame(output)
+    stream = io.BytesIO()
+    result_df.to_excel(stream, index=False)
+    stream.seek(0)
+    return StreamingResponse(stream, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=results.xlsx"})
